@@ -1,0 +1,12 @@
+programa suma1 ;
+var
+
+num1:real;
+si(num1>4) inicio 
+
+
+
+
+
+
+fin.

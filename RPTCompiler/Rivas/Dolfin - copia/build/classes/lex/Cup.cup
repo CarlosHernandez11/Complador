@@ -1,0 +1,628 @@
+package lex;
+import java_cup.runtime.*;
+import java.io.FileReader;
+import java.util.Hashtable;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.Stack;
+
+init with{:
+    vars = 0;
+    :}
+
+parser code {:
+
+    Hashtable<String, Lexema> tabla = new Hashtable<>();
+    int contadorTemporales = 0; 
+    int ifs = 0;
+    int whiles = 0;
+    int fors = 0;
+    int switches = 0;
+    int cases = 0;
+    Stack caso = new Stack();
+
+    public static int vars;
+    StringBuilder m = new StringBuilder("");
+    public void report_error(String a,String message, int left, int right) {
+        compilador.setError("Se esperaba "+message+" Linea "+(left+1)+" Columna: "+(right+1));
+        
+    }
+
+    public void report_error(String message, int left, int right) {
+//        StringBuilder m = new StringBuilder("Error sintáctico ");
+
+        compilador.setError(message+". Linea: "+(left+1)+" ; Columna: "+(right+1)+" ;");
+        System.err.println(m);
+
+    }
+
+    public void report_error(String message) {
+//        StringBuilder m = new StringBuilder("Error sintáctico ");
+
+        compilador.setError(message);
+        System.err.println(m);
+
+    }
+    public String newTemporal3(String a){
+            String resultado;
+
+            contadorTemporales++;
+            compilador.tres("t" + contadorTemporales + " = " + a );
+            resultado = "t" + contadorTemporales;
+
+        return resultado;
+            
+    }
+
+    public void newTemporal2(Lexema a, Lexema b){
+            compilador.tres(a.lexema + " = " + b.tres);
+            
+    }
+
+    public String newTemporal(Lexema a, Lexema op, Lexema b){
+        String resultado;
+
+            contadorTemporales++;
+            compilador.tres("t" + contadorTemporales + " = " + a.tres + " " + op.lexema + " " + b.tres);
+            resultado = "t" + contadorTemporales;
+
+        return resultado;
+    }
+
+    public void report_error(String message, Object info) {
+        if (info instanceof java_cup.runtime.Symbol){
+            java_cup.runtime.Symbol s = ((java_cup.runtime.Symbol) info);
+            m=new StringBuilder(message +" : ");
+            if (s.left >= 0) {m.append(" Linea: "+(s.left+1));
+                if (s.right >= 0)m.append(" Columna: "+(s.right+1));}}
+            if(m.length()!=0)
+                compilador.setError(m+"");
+    }
+    public static void main(String[] args){
+        try {
+                Cup sintactico = new Cup(new Lexer(new FileReader(args[0])));
+try{
+                Object result = sintactico.parse().value;}catch(Exception ex){
+
+
+}
+            System.out.println("\n*** Resultados finales ***");
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+:};
+
+
+
+terminal Lexema  //DECLARACION DE TERMINALES
+
+ENTERO,CAD,CARACTER ,BOLEANO,REAL,VAR,PUNTOYCOMA,MAYORIGUALQUE,MENORIGUALQUE,MENORQUE,MAYORQUE,IGUAL,DISTINTODE,COMA,
+Y,O,NEGACION,IF,THEN,BEGIN,FIN,ELSE,FOR,TO,DO,WHILE,PROCEDURE,FUNCTION,
+PARENTESISIZQ,PARENTESISDER,DOSPUNTOS,SUMA,MULTIPLICACION,RESTA,
+DIVISION,INTEGERNUM,REALNUM,ID,CADENA,REPEAT,UNTIL,MOSTRARMENSAJE,FALSE,PUNTO,
+TRUE,ERROR,CASE,OF,READ,WRITE,PROGRAMA,ASIG,OR,AND,NOT,MODULO;
+
+non terminal Lexema //DECLACACION DE NO TERMINALES
+inicio,declaracion,declaraciones,p,p1,TIPO,escribe,sentencias,lee,final,expresion,mul,condicion,oparit,oprel,oplog,condiciones,ciclo_while,ciclo_repeat,condicion_if,cuerpo_if,cuerpo_else,cuerpo_repeat,
+asignacion,identificador,sentencia;
+precedence left ID;
+precedence  right RESTA;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////------INICIO---------///////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+inicio ::= p  VAR declaraciones  sentencias  p1
+|p  VAR declaraciones   p1
+
+;
+asignacion::= ID:id ASIG expresion PUNTOYCOMA{:
+if(!parser.tabla.containsKey(id.lexema)){
+compilador.setError("Error  la variable: "+"'"+id.lexema+"'"+"necesita ser declarada"+"renglon: "+(idleft+1)+" columna: "+(idright+1));
+}
+:}
+|ID:id ASIG expresion{:compilador.setError("Error falta punto y coma en la instrucción de asignación en: fila: "+(idleft+1)+"columna: "+(idright+1));:}
+
+
+
+
+;
+
+/////////////////////////////////////////////////////////////////ERRORES/////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////                                                     ----------DECLARACIONES----------///////////////////////////////////////////////////////////
+declaracion::= ID:id DOSPUNTOS:dp TIPO:t PUNTOYCOMA{:
+
+if(!parser.tabla.containsKey(id.lexema)){
+id.valor = "null";
+            id.tipo = t.tipo;
+            
+            parser.tabla.put(id.lexema,id);
+            
+            
+
+
+}else{
+
+compilador.setError("Error ya lavariable: "+id.lexema+" ya fue declarada anteriormente"+" renglon: "+(idleft+1)+"columna: "+(idright+1));
+}
+
+
+
+RESULT=id;
+:}
+|ID:id DOSPUNTOS TIPO:e {:compilador.setError("Error falta punto y coma renglon: "+(eleft+1)+"columna: "+(eright+1));:}
+|ID DOSPUNTOS error:e PUNTOYCOMA {:compilador.setError("Error se esperaba tipo de dato renglon: "+(eleft+1)+"columna: "+(eright+1));:}
+| ID error:e {:compilador.setError("Error no se reconoce la declaración renglon: "+(eleft+1)+"columna: "+(eright+1));:}
+|ID:id DOSPUNTOS TIPO:t IGUAL expresion:exp PUNTOYCOMA{:
+
+
+if(!parser.tabla.containsKey(id.lexema)){
+
+
+if(t.tipo.equals(exp.tipo)){
+id.valor = "null";
+            id.tipo = t.tipo;
+            id.tres = id.lexema;
+            parser.tabla.put(id.lexema,id);
+}else{
+compilador.setError("Error el tipo: "+t.lexema+" no es compatible con el valor : "+exp.lexema+"en el renglon: "+(idleft+1)+"columna:"+(idright+1));
+}
+
+}else{
+
+compilador.setError("Error ya lavariable: "+id.lexema+" ya fue declarada anteriormente"+" renglon: "+(idleft+1)+"columna: "+(idright+1));
+}
+
+
+
+
+
+RESULT=id;
+:}
+
+
+
+
+|ID DOSPUNTOS TIPO IGUAL:i expresion{:compilador.setError("Error falta punto y coma en el renglon: "+(ileft+1)+"columna: "+(iright+1));:}
+;
+
+declaraciones::=declaracion declaraciones
+        |declaracion
+//////////////////////////////////////////////////////////////ERRORES///////////////////////////////////
+
+
+;
+        
+p::= PROGRAMA ID PUNTOYCOMA
+
+///////////////////////////////////////////////////////////////////////-------------ERRORES/////////////////////////////////////////////
+|PROGRAMA:p PUNTOYCOMA{:compilador.setError("Error el programa no tiene nombre: "+"renglon:"+(pleft+1)+"\n"+"columna: "+(pright+1));:}
+
+;
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////------FIN---///////////////////////////////////////
+
+p1::= FIN PUNTO
+////////////ERRORES///////////////////////////////////////////////////////////////
+|FIN error:p{:compilador.setError("Error! se esperaba el fin del programa renglon: "+(pleft+1)+"\n"+"columna: "+(pright+1));:}
+|PUNTO:p{:compilador.setError("Error! se esperaba el fin del programa renglon: "+(pleft+1)+"\n"+"columna: "+(pright+1));:}
+
+
+
+;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////-----------------TIPO//////////////////////////////////////////////////////////
+
+TIPO::= ENTERO:e 
+
+{:e.setTipo("numerico ");
+RESULT=e;
+:}
+|CARACTER:a{:
+a.setTipo("cadena");
+
+RESULT=a;:}
+|CAD:a {:
+
+a.setTipo("cadena");
+    RESULT=a;
+:}
+|BOLEANO:a {:
+a.setTipo("boleano");
+RESULT=a;
+:}
+|REAL:a {:
+a.setTipo("numerico");
+RESULT=a;
+:}
+;
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////------------------ESCRIBIRLN---////////////////////////////////////////////////////////////
+
+escribe::= WRITE ID  PARENTESISDER PUNTOYCOMA 
+|WRITE ID  PARENTESISDER:p{:compilador.setError("Error falta punto y coma renglon: "+(pleft+1)+"columna: "+(pright+1));:}
+| WRITE error:e{:compilador.setError("Error estructura erronea en funcion de escribir renglon: "+(eleft+1)+"columna: "+(eright+1));:}
+| WRITE   CADENA  PARENTESISDER PUNTOYCOMA 
+| WRITE   CADENA  PARENTESISDER:p{:compilador.setError("Error falta punto y coma renglon: "+(pleft+1)+"columna: "+(pright+1));:}
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////--------------ERRORES------////////////////////
+
+
+
+;
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////---------------------LEER------------/////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+lee::= READ ID PARENTESISDER PUNTOYCOMA
+|READ ID PARENTESISDER:p{:compilador.setError("Error falta punto y coma en renglon: "+(pleft+1)+"columna: "+(pright+1));:}
+|READ  CADENA PARENTESISDER PUNTOYCOMA
+|READ  CADENA PARENTESISDER:p {:compilador.setError("Error falta punto y coma en renglon: "+(pleft+1)+"columna: "+(pright+1));:}
+| READ error:e PUNTOYCOMA {:compilador.setError("Error estructura incompleta ó erronea en renglon: "+(eleft+1)+"columna: "+(eright+1));:}
+;
+
+/////////////////////////////////////////////////////////////////////ERRORES/////////////////////////////////////////
+
+
+
+
+
+
+condicion_if::= IF PARENTESISIZQ condiciones PARENTESISDER BEGIN
+ cuerpo_if
+|IF PARENTESISIZQ condiciones PARENTESISDER BEGIN
+cuerpo_else
+///////////////////////////////////////////////////////////////ERRORES/////////////////////////////////////////////
+|IF PARENTESISIZQ:e condiciones BEGIN{:compilador.setError("Errorse esperaba símbolo ')' \nen la fila: "+(eleft+1)+"columna: "+(eright+1));:}
+ cuerpo_if
+|IF PARENTESISIZQ error:e PARENTESISDER BEGIN{:compilador.setError("Error no se reconoce la sentencia  ')' \nen la fila: "+(eleft+1)+"columna: "+(eright+1));:}
+ cuerpo_if
+|IF PARENTESISIZQ condiciones PARENTESISDER error:e{:compilador.setError("Error no se reconoce la sentencia  \nen la fila: "+(eleft+1)+"columna: "+(eright+1));:}
+cuerpo_if
+| PARENTESISIZQ:e condiciones PARENTESISDER BEGIN{:compilador.setError("Error no se reconoce la sentencia  \nen la fila: "+(eleft+1)+"columna: "+(eright+1));:}
+ cuerpo_if
+|IF PARENTESISIZQ error:e BEGIN {:compilador.setError("Error no se reconoce la sentencia  \nen la fila: "+(eleft+1)+"columna: "+(eright+1));:}
+ cuerpo_if
+|IF PARENTESISIZQ condiciones PARENTESISDER BEGIN error:e {:compilador.setError("Error no se reconoce la sentencia  \nen la fila: "+(eleft+1)+"columna: "+(eright+1));:}
+
+|IF PARENTESISIZQ condiciones PARENTESISDER:e {:compilador.setError("Error falta la palabra reservada inicio en\n "+"fila: "+(eleft+1)+"columna: "+(eright+1));:}
+ cuerpo_if
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+;
+
+
+cuerpo_if::= sentencias FIN PUNTOYCOMA
+| sentencias error:e FIN{:compilador.setError("Error falta punto y coma"+"renglon"+(eleft+1)+"columna: "+(eright+1));:}
+|FIN PUNTOYCOMA
+| FIN:f{:compilador.setError("Error falta punto y coma en renglon: "+(fleft+1)+"\ncolumna: "+(fright+1));:}
+
+;
+cuerpo_else::= FIN ELSE BEGIN   FIN PUNTOYCOMA
+|FIN ELSE BEGIN   sentencias FIN PUNTOYCOMA
+|sentencias FIN ELSE BEGIN   FIN PUNTOYCOMA
+|sentencias FIN ELSE BEGIN   sentencias FIN PUNTOYCOMA
+///////////////////////////////////////////////////////////////ERRORES////////////////////////////////////////////
+
+
+|FIN ELSE BEGIN   FIN:e{:compilador.setError("Error falta punto y coma en \n fila "+(eleft+1)+"columna: "+(eright+1));:}
+|FIN ELSE BEGIN sentencias FIN:e{:compilador.setError("Error falta punto y coma en \n fila "+(eleft+1)+"columna: "+(eright+1));:}
+| FIN ELSE BEGIN error:e {:compilador.setError("Error no se reconoce la sentencia  \n fila "+(eleft+1)+"columna: "+(eright+1));:}
+;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+/////////////////////////////////////////////////////////////////////////REPEAT///////////////////////////////////////////////////////
+ciclo_repeat::= REPEAT UNTIL INTEGERNUM:n BEGIN  
+cuerpo_repeat
+
+//////////////////////////////////////////////////////////ERRORES//////////////////////////////
+|REPEAT UNTIL INTEGERNUM:n error:e PUNTOYCOMA{:compilador.setError("Error falta la palabra reservada INICIO en renglon: "+(eleft+1)+"columna: "+(eright+1));:}
+| UNTIL error:e PUNTOYCOMA {:compilador.setError("Error despues de UNTIL en el renglon: "+(eleft+1)+"columna: "+(eright+1));:}
+| REPEAT error:e FIN {:compilador.setError("Error despues de REPEAT en el renglon: "+(eleft+1)+"columna: "+(eright+1));:}
+;
+
+
+
+cuerpo_repeat::= sentencias FIN PUNTOYCOMA
+| sentencias FIN:f{:compilador.setError("Error falta punto y coma en renglon: "+(fleft+1)+"columna: "+(fright+1));:}
+| FIN PUNTOYCOMA
+|FIN:f{:compilador.setError("Error falta punto y coma en renglon: "+(fleft+1)+"columna: "+(fright+1));:}
+|REPEAT error:e PUNTOYCOMA {:compilador.setError("Error no se reconoce la sentencia renglon: "+(eleft+1)+"columna: "+(eright+1));:}
+
+
+
+
+//////////////////////////////////////////////////ERRORES///////////////////////////////////////////////////////////
+
+;
+
+sentencias::= sentencia sentencias
+| sentencia
+;
+
+
+sentencia::=escribe 
+|lee
+|ciclo_while
+|ciclo_repeat
+|condicion_if
+| asignacion
+;
+
+////////////////////////////////----------WHILE-----------/////////////////////////////////////////////////////
+
+ciclo_while::= WHILE PARENTESISIZQ condiciones PARENTESISDER DO BEGIN
+
+
+
+FIN PUNTOYCOMA
+|WHILE PARENTESISIZQ condiciones PARENTESISDER DO error:e
+
+
+
+FIN PUNTOYCOMA{:compilador.setError("Error falta la palabra reservada INICIO renglon:  "+(eleft+1)+"columna: "+(eright+1));:}
+
+
+|WHILE PARENTESISIZQ condiciones PARENTESISDER DO error:e
+
+sentencias 
+
+
+FIN PUNTOYCOMA{:compilador.setError("Error falta la palabra reservada INICIO renglon:  "+(eleft+1)+"columna: "+(eright+1));:}
+
+|WHILE PARENTESISIZQ condiciones PARENTESISDER DO BEGIN
+
+
+
+FIN:f {:compilador.setError("Error falta punto y coma "+"renglon: "+(fleft+1)+"columna: "+(fright+1));:}
+|WHILE PARENTESISIZQ condiciones PARENTESISDER DO BEGIN 
+
+sentencias
+FIN PUNTOYCOMA
+
+|WHILE PARENTESISIZQ condiciones PARENTESISDER DO BEGIN 
+
+sentencias
+FIN:f{:compilador.setError("Error falta punto y coma "+"renglon: "+(fleft+1)+"columna: "+(fright+1));:}
+
+
+/////////////////////////////////////////////--------ERRORES---------------////////////////////////////////////////////////
+| WHILE error:e FIN {:compilador.setError("Error desconocido en el ciclo while probablemente estructura incorrecta  o palabra mal escrita renglon: "+(eleft+1)+"columna: "+(eright+1));:}
+|WHILE PARENTESISIZQ condiciones error:e PUNTOYCOMA {:compilador.setError("Error se esperaba ')' en el renglon: "+(eleft+1)+"columna: "+(eright+1));:}
+;
+
+/////////////////////////////////////////////////-------Expresion----///////////////////////////////////////////////
+expresion::= expresion:a SUMA  mul:b{:
+if(a.tipo.equals("cadena")| b.tipo.equals("cadena")){
+compilador.setError("La operación es incompatible para un tipo de dato dentro de la expresión en fila: "+(aleft+1)+" columna: "+(aright+1));
+
+}
+if(!a.tipo.equals(b.tipo)){
+compilador.setError("Error los tipos son incompatibles en la fila: "+(aleft+1)+" columna: "+(aright+1));
+}
+
+RESULT= a;
+:}
+| expresion:a RESTA mul:b{:
+if(a.tipo.equals("cadena")| b.tipo.equals("cadena")){
+compilador.setError("La operación es incompatible para un tipo de dato dentro de la expresión en fila: "+(aleft+1)+" columna: "+(aright+1));
+
+}
+if(!a.tipo.equals(b.tipo)){
+compilador.setError("Error los tipos son incompatibles en la fila: "+(aleft+1)+" columna: "+(aright+1));
+}
+
+
+
+
+RESULT=a;
+
+
+:}
+
+
+| mul:m{:
+    RESULT=m;
+:}
+
+
+
+
+;
+/////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////-----Multiplicacion////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+
+mul::= mul:a MULTIPLICACION identificador:b
+
+{:
+if(a.tipo.equals("cadena")| b.tipo.equals("cadena")){
+compilador.setError("La operación es incompatible para un tipo de dato dentro de la expresión en fila: "+(aleft+1)+" columna: "+(aright+1));
+
+}
+if(!a.tipo.equals(b.tipo)){
+compilador.setError("Error los tipos son incompatibles en la fila: "+(aleft+1)+" columna: "+(aright+1));
+}
+
+
+
+
+
+
+
+RESULT= a;:}
+| mul:a DIVISION identificador:b
+{:
+if(a.tipo.equals("cadena")| b.tipo.equals("cadena")){
+compilador.setError("La operación es incompatible para un tipo de dato dentro de la expresión en fila: "+(aleft+1)+" columna: "+(aright+1));
+
+}
+if(!a.tipo.equals(b.tipo)){
+compilador.setError("Error los tipos son incompatibles en la fila: "+(aleft+1)+" columna: "+(aright+1));
+}
+
+
+
+
+
+
+
+
+RESULT=a;:}
+
+|PARENTESISIZQ expresion:a PARENTESISDER{:
+
+
+RESULT=a;
+
+
+:}
+
+
+
+|identificador:f
+
+{:RESULT=f;:}
+
+;
+
+
+identificador::= final:a{:
+
+RESULT=a;
+:};
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////-------final///////////////////////////////////////////
+final::=INTEGERNUM:i{:
+    i.setTipo("numerico"); 
+    i.temporal = i.lexema;
+   
+    RESULT=i;    
+    :}
+    |REALNUM:r{: 
+    r.setTipo("numerico"); 
+   
+    RESULT=r; 
+    :}
+    |CADENA:c{:   
+    c.setTipo("cadena"); 
+  
+    RESULT=c; 
+    :}
+    |ID:id{: 
+if(!parser.tabla.containsKey(id.lexema)){
+compilador.setError("Error  la variable: "+"'"+id.lexema+"'"+"necesita ser declarada"+"renglon: "+(idleft+1)+" columna: "+(idright+1));
+id.setTipo("sintipo");
+}else{
+
+ id.temporal = id.lexema;
+            id = parser.tabla.get(id.lexema);
+            id.tres = id.lexema;
+}
+
+        
+   RESULT=id; 
+:}
+| TRUE:t{:t.setTipo("boleano");
+RESULT=t;
+:}
+| FALSE:f{:
+f.setTipo("boleano");
+RESULT=f;
+
+:}
+
+
+;
+
+
+//////////////////////////////////////////////----condiciones----////////////////////////////////////////////////////
+
+
+
+
+
+oprel ::= IGUAL:a{:RESULT=a;:}
+                     | DISTINTODE:a{:RESULT=a;:}
+                     | MENORQUE:a{:RESULT=a;:}
+                     | MENORIGUALQUE:a{:RESULT=a;:}
+                     | MAYORQUE:a{:RESULT=a;:}
+                     | MAYORIGUALQUE:a{:RESULT=a;:};
+oplog::= AND:a {: RESULT=a;:}|OR:a{:RESULT=a;:}|NOT:a{:RESULT=a;:}
+
+;
+
+condicion::= expresion:a oprel expresion:b
+{:
+
+
+if(a.tipo.equals(b.tipo)){
+
+}else{
+compilador.setError("Error los tipos son incompatibles en la condicion! en "+"renglon: "+(aleft+1)+"columna: "+(aright+1));
+
+}
+
+
+
+
+
+
+
+
+RESULT=b;
+
+:}
+
+
+|PARENTESISIZQ condiciones:a PARENTESISDER{:
+RESULT=a;
+:}
+| NEGACION PARENTESISIZQ condiciones:a PARENTESISDER
+| expresion:a expresion{:
+compilador.setError("Error condicion invalida en renglon: "+(aleft+1)+"columna: "+(aright+1));
+:}
+;
+condiciones::= condiciones:a oplog condicion:b{:
+
+RESULT=a;:}
+|condicion:a{:RESULT=a;:}
+
+
+;
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+

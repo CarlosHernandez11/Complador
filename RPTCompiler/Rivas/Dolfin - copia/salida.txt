@@ -1,0 +1,5 @@
+Compilado en 12 milisegundos.
+Error falta punto y coma en renglon: 12
+columna: 1
+Error! se esperaba el fin del programa renglon: 12
+columna: 4
